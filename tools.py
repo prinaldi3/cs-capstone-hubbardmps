@@ -6,11 +6,11 @@ class Parameters:
     input units: eV (t, U)
     """
 
-    def __init__(self, nsites, u, t, bc):
+    def __init__(self, nsites, u, t0, bc):
         self.nsites = nsites
         self.bc = bc
         self.nup = nsites // 2 + nsites % 2
         self.ndown = nsites // 2
 
-        self.u = u / t
-        self.t = 1.
+        self.u = u / t0
+        self.t0 = 1.
