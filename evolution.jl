@@ -1,5 +1,9 @@
+using MKL
 using ITensors
-using LinearAlgebra
+
+ITensors.Strided.set_num_threads(1)
+MKL.BLAS.set_num_threads(1)
+ITensors.enable_threaded_blocksparse()
 
 # system size
 N = 10
@@ -16,30 +20,30 @@ iomega0 = 32.9  # driving (angular) frequency, in THz
 cycles = 10
 
 # CONVERTING TO ATOMIC UNITS, w/ energy normalized to t
-factor = 1 / (t * 0.036749323)
+factor = 1 / (it * 0.036749323)
 t = 1
 U = iU / t
 
 omega0 = iomega0 * factor * 0.0001519828442
 a = ia * 1.889726125/factor
-F0 = iF0 * 1.944689151e-4 * (factor**2)
+F0 = iF0 * 1.944689151e-4 * (factor^2)
 
-"""
-Get the value of the transform limited pulse phi at time time
-\phi(t) = \frac{aF_0}{\omega_0} \sin^2(\frac{\omega_0 t}{2(cycles)}) \sin(\omega_0 t)
-params:
-lat - scaled lattice constant
-strength - scaled field strength
-field - scaled driving frequency
-cyc - number of cycles
-"""
+# """
+# Get the value of the transform limited pulse phi at time time
+# \phi(t) = \frac{aF_0}{\omega_0} \sin^2(\frac{\omega_0 t}{2(cycles)}) \sin(\omega_0 t)
+# params:
+# lat - scaled lattice constant
+# strength - scaled field strength
+# field - scaled driving frequency
+# cyc - number of cycles
+# """
 function phi_tl(time, lat, strength, field, cyc)
-    return (lat * strength / field) * (sin(field * time / (2*cyc))**2) * sin(field * time)
+    return (lat * strength / field) * (sin(field * time / (2*cyc))^2) * sin(field * time)
 end
 
-"""
-Get the time dependent Hamiltonian at a time corresponding to phi
-"""
+# """
+# Get the time dependent Hamiltonian at a time corresponding to phi
+# """
 function get_ham(nsites, space, p, sU)
     # create the local hilbert space on N sites
     sites = siteinds("Electron", nsites; conserve_qns=true)
@@ -54,10 +58,10 @@ function get_ham(nsites, space, p, sU)
     eiphi = exp(1.0im * p)
     eiphiconj = conj(eiphi)
     for j=1:nsites-1
-        global one += -eiphiconj, "Cdagup", j, "Cup", j+1
-        global one += -eiphiconj, "Cdagdn", j, "Cdn", j+1
-        global one += -eiphi, "Cdagup", j+1, "Cup", j
-        global one += -eiphi, "Cdagdn", j+1, "Cdn", j
+        one += -eiphiconj, "Cdagup", j, "Cup", j+1
+        one += -eiphiconj, "Cdagdn", j, "Cdn", j+1
+        one += -eiphi, "Cdagup", j+1, "Cup", j
+        one += -eiphi, "Cdagdn", j+1, "Cdn", j
     end
 
     # periodic boundary conditions
@@ -69,7 +73,7 @@ function get_ham(nsites, space, p, sU)
     # two particle hamiltonian
     two = OpSum()
     for j=1:nsites
-        global two += sU, "Nup", j, "Ndn", j
+        two += sU, "Nup", j, "Ndn", j
     end
 
     h1 = MPO(one, space)
@@ -80,9 +84,9 @@ function get_ham(nsites, space, p, sU)
     return H
 end
 
-"""
-Get the time dependent current operator at time corresponding to phi
-"""
+# """
+# Get the time dependent current operator at time corresponding to phi
+# """
 function get_current(nsites, space, p, sa)
     current = OpSum()
 
@@ -114,15 +118,15 @@ function get_current(nsites, space, p, sa)
 end
 
 
-"""
-Get the gates that represent the propogator at time corresponding to phi
-params:
-nsites - # of sites in the system
-space - local hilbert space with indices to different sites
-delta - time step
-p - field at time time
-sU - scaled U
-"""
+# """
+# Get the gates that represent the propogator at time corresponding to phi
+# params:
+# nsites - # of sites in the system
+# space - local hilbert space with indices to different sites
+# delta - time step
+# p - field at time time
+# sU - scaled U
+# """
 function get_prop_gates(nsites, space, delta, p, sU)
     # Make gates (1,2),(2,3),(3,4),...
     gates = ITensor[]
@@ -158,11 +162,6 @@ function get_prop_gates(nsites, space, delta, p, sU)
     return gates
 end
 
-
-ITensors.Strided.set_num_threads(1)
-BLAS.set_num_threads(1)
-ITensors.enable_threaded_blocksparse()
-
 # create the local hilbert space on N sites
 sites = siteinds("Electron", N; conserve_qns=true)
 H_ground = get_ham(N, sites, 0, U)
@@ -182,7 +181,7 @@ cutoff!(sweeps, 1e-10)
 energy , psi0 = @time dmrg(H_ground, psi0_i , sweeps )
 
 # times for evolution
-nsteps = 100
+nsteps = 1
 ti = 0
 tf = 2 * pi * cycles / omega0
 tau = (tf - ti) / nsteps  # time step
@@ -196,6 +195,6 @@ psi = psi0
     phi = phi_tl(curr_time, a, F0, omega0, N)
     global psi = apply(get_prop_gates(N, sites, tau, phi, U), psi; cutoff=cutoff)
     # calculate energy by taking <psi|H|psi>
-    local current = inner(psi, H, psi)
-    @show energy
+    local current = inner(psi, get_current(N, sites, phi, a), psi)
+    @show current
 end
