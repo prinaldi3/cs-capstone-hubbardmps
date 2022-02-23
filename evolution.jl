@@ -23,7 +23,7 @@ cycles = 10
 # CONVERTING TO ATOMIC UNITS, w/ energy normalized to t
 factor = 1 / (it * 0.036749323)
 t = 1
-U = iU / t
+U = iU / it
 
 omega0 = iomega0 * factor * 0.0001519828442
 a = ia * 1.889726125/factor

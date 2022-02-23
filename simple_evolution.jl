@@ -60,15 +60,15 @@ energy , psi0 = @time dmrg(H, psi0_i , sweeps )
 @show energy
 
 # times for evolution, pretty aribtrary right now
-nsteps = 5
+nsteps = 100
 ti = 0
-tf = 10
+tf = .01
 tau = (tf - ti) / nsteps
 cutoff = 1E-8
 
 # Make gates (1,2),(2,3),(3,4),...
 gates = ITensor[]
-for j=1:N
+@time for j=1:N
     s1 = sites[j]
     #periodic BC
     if j == N
@@ -92,13 +92,14 @@ end
 
 # Include gates in reverse order too
 # (N,N-1),(N-1,N-2),...
-append!(gates,reverse(gates))
+@time append!(gates,reverse(gates))
 
 #Initialize psi to an MPS
-psi = productMPS(sites, n -> isodd(n) ? "Up" : "Dn")
+# psi = productMPS(sites, n -> isodd(n) ? "Up" : "Dn")
+psi = psi0
 
 #Time evolution
-for step=1:nsteps
+@time for step=1:nsteps
     global psi = apply(gates, psi; cutoff=cutoff)
     # calculate energy by taking <psi|H|psi>
     local energy = inner(psi, H, psi)
