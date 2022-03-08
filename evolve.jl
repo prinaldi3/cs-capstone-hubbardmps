@@ -17,9 +17,6 @@ end
 # Get the time dependent Hamiltonian at a time corresponding to phi
 # """
 function get_ham(nsites, space, p, sU)
-    # create the local hilbert space on N sites
-    sites = siteinds("Electron", nsites; conserve_qns=true)
-
     # H = -t_0 \sum_j,sig \hat{c}^{\dag}_{j,sig} \hat{c}_{j+1,sig} + h.c
     #      + U \sum_j \hat{n}_{j, \uparrow} \hat{n}_{j, \downarrow}
 
@@ -92,6 +89,7 @@ end
 
 # """
 # Get the gates that represent the propogator at time corresponding to phi
+# Second order TEBD
 # params:
 # nsites - # of sites in the system
 # space - local hilbert space with indices to different sites
@@ -100,8 +98,10 @@ end
 # sU - scaled U
 # """
 function get_prop_gates(nsites, space, delta, p, sU)
-    # Make gates (1,2),(2,3),(3,4),...
-    gates = ITensor[]
+    # odd gates (1,2),(3,4),(5,6),...
+    ogates = ITensor[]
+    # even gates (2,3),(4,5),(6,7),...
+    egates = ITensor[]
     for j=1:nsites
         s1 = space[j]
         #periodic BC
@@ -123,13 +123,21 @@ function get_prop_gates(nsites, space, delta, p, sU)
              -eiphi * op("Cdagdn",s2) * op("Cdn",s1) +
              ul * op("Nupdn", s1) * op("Id",s2) +
              ur * op("Id",s1) * op("Nupdn", s2)
-        Gj = exp(-1.0im * delta/2 * hj)
-        push!(gates,Gj)
+        # odd gate
+        if j % 2 == 1
+            Gj = exp(-1.0im * delta * hj)
+            push!(ogates, Gj)
+        # even gate
+        else
+            Gj = exp(-1.0im * delta/2 * hj)
+            push!(egates, Gj)
+        end
     end
 
-    # Include gates in reverse order too
-    # (N,N-1),(N-1,N-2),...
-    append!(gates,reverse(gates))
+    gates = ITensor[]
+    append!(gates, egates)
+    append!(gates, ogates)
+    append!(gates, egates)
 
     return gates
 end
