@@ -59,7 +59,7 @@ psi = psi0
 #Time evolution
 @time for step=0:nsteps-1
     curr_time = step * tau
-    phi = phi_tl(curr_time, a, F0, omega0, N)
+    phi = phi_tl(curr_time, a, F0, omega0, cycles)
     global psi = apply(get_prop_gates(N, sites, tau, phi, U), psi; cutoff=cutoff)
     # calculate energy by taking <psi|H|psi>
     local current = inner(psi, get_current(N, sites, phi, a), psi)

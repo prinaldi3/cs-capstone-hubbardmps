@@ -1,15 +1,15 @@
+using MKL
 using ITensors
-using LinearAlgebra
 
 N = 12
 # energy parameters, for now these will be prescaled
 # t = .52
 # U = 1 * t
 t = 1
-U = 1 * t
+U = .5 * t
 
 ITensors.Strided.set_num_threads(1)
-BLAS.set_num_threads(1)
+MKL.BLAS.set_num_threads(1)
 ITensors.enable_threaded_blocksparse()
 
 # create the local hilbert space on N sites
@@ -50,15 +50,12 @@ H = splitblocks(linkinds, H)
 state = [isodd(n) ? "Up" : "Dn" for n=1:N]
 psi0_i = productMPS(sites , state)
 
-# Do 6 sweeps of DMRG , gradually
-# increasing the maximum MPS
-# bond dimension
-sweeps = Sweeps(6)
-maxdim!(sweeps, 10, 20, 100, 200, 400)
-# maxdim!( sweeps ,10 ,20 ,100 ,200 ,400 ,800)
+# Do 8 sweeps of DMRG , gradually increasing the maximum MPS
+# bond dimension, at 12 sites, this gives precision to 7 sig figs
+sweeps = Sweeps(8)
+maxdim!(sweeps, 10, 20, 100, 200, 400, 400, 600)
 cutoff!(sweeps, 1e-10)
 # Run the DMRG algorithm
-# energy , psi0 = dmrg([h1, h2],psi0_i , sweeps )
-@time dmrg(H, psi0_i, sweeps)
+energy, psi0 = @time dmrg(H, psi0_i, sweeps)
 
-# @show energy
+@show energy
