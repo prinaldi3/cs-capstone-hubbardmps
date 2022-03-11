@@ -8,7 +8,7 @@ import exact_evolve as evolve
 N = 10
 # energy parameters, in units eV
 it = .52
-iU = 10 * it
+iU = 0.5 * it
 
 # lattice spacing, in angstroms
 ia = 4
@@ -75,6 +75,7 @@ psi_t = np.squeeze(psi_t)
 
 """Calculate Expectation Values"""
 J_expec = evolve.J_expec(psi_t, times, hop_left, hop_right, lat, cycles)
+H_expec = evolve.H_expec(psi_t, times, onsite, hop_left, hop_right, lat, cycles)
 
 np.save('./Data/EvolutionTesting/exact-'+str+'.npy', J_expec)
 # np.save('./Data/EvolutionTesting/exact-times-nsteps{}.npy'.format(n_steps), times)

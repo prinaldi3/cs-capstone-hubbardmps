@@ -74,10 +74,10 @@ function get_current(nsites, space, p, sa)
     end
 
     # periodic boundary conditions
-    current += left, "Cdagup", N, "Cup", 1
-    current += left, "Cdagdn", N, "Cdn", 1
-    current += right, "Cdagup", 1, "Cup", N
-    current += right, "Cdagdn", 1, "Cdn", N
+    current += left, "Cdagup", nsites, "Cup", 1
+    current += left, "Cdagdn", nsites, "Cdn", 1
+    current += right, "Cdagup", 1, "Cup", nsites
+    current += right, "Cdagdn", 1, "Cdn", nsites
 
     J = MPO(current, space)
 
@@ -105,7 +105,7 @@ function get_prop_gates(nsites, space, delta, p, sU)
     for j=1:nsites
         s1 = space[j]
         #periodic BC
-        if j == N
+        if j == nsites
             s2 = space[1]
         else
             s2 = space[j+1]

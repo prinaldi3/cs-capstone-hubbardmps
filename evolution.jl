@@ -10,7 +10,7 @@ ITensors.enable_threaded_blocksparse()
 N = 10
 # energy parameters, in units eV
 it = .52
-iU = 1 * it
+iU = 0.5 * it
 
 # lattice spacing, in angstroms
 ia = 4
@@ -40,7 +40,7 @@ psi0_i = productMPS(sites , state)
 # Do 8 sweeps of DMRG , gradually increasing the maximum MPS
 # bond dimension, at 12 sites, this gives precision to 7 sig figs
 sweeps = Sweeps(8)
-maxdim!(sweeps, 10, 20, 100, 200, 400, 400, 600)
+maxdim!(sweeps, 10, 20, 100, 200, 400, 600, 800)
 cutoff!(sweeps, 1e-10)
 # Run the DMRG algorithm
 energy, psi0 = @time dmrg(H_ground, psi0_i, sweeps)
@@ -48,7 +48,7 @@ energy, psi0 = @time dmrg(H_ground, psi0_i, sweeps)
 @show energy
 
 # times for evolution
-nsteps = 1
+nsteps = 2000
 ti = 0
 tf = 2 * pi * cycles / omega0
 tau = (tf - ti) / nsteps  # time step
@@ -64,4 +64,6 @@ psi = psi0
     # calculate energy by taking <psi|H|psi>
     local current = inner(psi, get_current(N, sites, phi, a), psi)
     @show current
+    local energy = inner(psi, get_ham(N, sites, phi, U), psi)
+    @show energy
 end
