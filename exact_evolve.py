@@ -41,6 +41,26 @@ def evolve_psi(current_time, psi, onsite, hop_left, hop_right, lat, cycles, phi_
 
     return a
 
+def H_expec(psis, times, onsite, hop_left, hop_right, lat, cycles, phi_func=phi_tl):
+    """
+    Calculates expectation of the hamiltonian
+    :param psis: list of states at every point in the time evolution
+    :param times: the times at which psi was calculated
+    :param phi_func: the function used to calculate phi
+    :return: an array of the expectation values of a Hamiltonian
+    """
+    expec = []
+    for i in range(len(times)):
+        current_time = times[i]
+        psi = psis[:,i]
+        phi = phi_func(current_time, lat, cycles)
+        # H|psi>
+        Hpsi = -lat.t * (np.exp(-1j*phi) * hop_left.dot(psi) + np.exp(1j*phi) * hop_right.dot(psi)) + \
+            lat.U * onsite.dot(psi)
+        # <psi|H|psi>
+        expec.append((np.vdot(psi, Hpsi)).real)
+    return np.array(expec)
+
 def J_expec(psis, times, hop_left, hop_right, lat, cycles, phi_func=phi_tl):
     """
     Calculates expectation of the current density
