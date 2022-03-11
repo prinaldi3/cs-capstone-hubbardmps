@@ -57,10 +57,13 @@ cutoff = 1E-8
 psi = psi0
 
 #Time evolution
-@time for step=0:nsteps-1
+# @time for step=0:nsteps-1
+for step =0:4
     curr_time = step * tau
+    @show typeof(curr_time)
     phi = phi_tl(curr_time, a, F0, omega0, cycles)
-    global psi = apply(get_prop_gates(N, sites, tau, phi, U), psi; cutoff=cutoff, maxdim=800)
+    global psi += -1.0im * tau * apply(get_itensor_ham(N, sites, phi, U), psi)
+    # global psi = apply(get_prop_gates(N, sites, tau, phi, U), psi; cutoff=cutoff, maxdim=800)
     # calculate energy by taking <psi|H|psi>
     local current = inner(psi, get_current(N, sites, phi, a), psi)
     @show current
