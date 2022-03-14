@@ -13,6 +13,19 @@ function phi_tl(time, lat, strength, field, cyc)
     return (lat * strength / field) * (sin(field * time / (2*cyc))^2) * sin(field * time)
 end
 
+function get_normalized_MPS!(M::MPS; (lognorm!)=[])
+  c = ortho_lims(M)
+  lognorm_M = lognorm(M)
+  push!(lognorm!, lognorm_M)
+  z = exp(lognorm_M / length(c))
+  # XXX: this is not modifying `M` in-place.
+  # M[c] ./= z
+  for n in c
+    M[n] ./= z
+  end
+  return M
+end
+
 # """
 # Get the time dependent Hamiltonian at a time corresponding to phi
 # """
@@ -80,8 +93,8 @@ function get_itensor_ham(nsites, space, p, sU)
              ur * op("Id",s1) * op("Nupdn", s2)
         push!(H, hj)
         end
-        return H
-    end
+    return H
+end
 
 # """
 # Get the time dependent current operator at time corresponding to phi

@@ -60,19 +60,23 @@ psi = psi0
 currents = zeros(nsteps)
 energies = zeros(nsteps)
 
+io = open("./Data/RK4Testing/mps-current-U$U-nsites$N-nsteps$nsteps.txt", "w")
+close(io)
+io = open("./Data/RK4Testing/mps-energy-U$U-nsites$N-nsteps$nsteps.txt", "w")
+close(io)
+
 #Time evolution
 @time for step=0:nsteps-1
     curr_time = step * tau
     phi_t = phi_tl(curr_time, a, F0, omega0, cycles)
     phi_td2 = phi_tl(curr_time + tau / 2, a, F0, omega0, cycles)
     phi_td = phi_tl(curr_time + tau, a, F0, omega0, cycles)
-    htd2 = get_itensor_ham(N, sites, phi_td2, U)
     k1 = -1.0im * tau * apply(get_itensor_ham(N, sites, phi_t, U), psi)
-    k2 = -1.0im * tau * apply(htd2, psi) + -1.0im * tau / 2 * apply(htd2, k1)
-    k3 = -1.0im * tau * apply(htd2, psi) + -1.0im * tau / 2 * apply(htd2, k2)
+    k2 = -1.0im * tau * apply(get_itensor_ham(N, sites, phi_td2, U), psi + 0.5 * k1)
+    k3 = -1.0im * tau * apply(get_itensor_ham(N, sites, phi_td2, U), psi + 0.5 * k2)
     k4 = -1.0im * tau * apply(get_itensor_ham(N, sites, phi_td, U), psi + k3)
-    global psi += (1/6) * k1 + (1/3) * k2 + (1/3) * k3 + (1/6) * k1
-    global psi = (1 / norm(psi)) * psi
+    global psi += (1/6) * k1 + (1/3) * k2 + (1/3) * k3 + (1/6) * k4
+    global psi = get_normalized_MPS!(psi)
     # global psi = apply(get_prop_gates(N, sites, tau, phi, U), psi; cutoff=cutoff, maxdim=800)
     # calculate energy by taking <psi|H|psi>
     local current = inner(psi, get_current(N, sites, phi_td, a), psi)
