@@ -49,7 +49,7 @@ energy, psi0 = @time dmrg(H_ground, psi0_i, sweeps)
 @show energy
 
 # times for evolution
-nsteps = 2000
+nsteps = 10000
 ti = 0
 tf = 2 * pi * cycles / omega0
 tau = (tf - ti) / nsteps  # time step
@@ -60,9 +60,9 @@ psi = psi0
 currents = zeros(nsteps)
 energies = zeros(nsteps)
 
-io = open("./Data/RK4Testing/mps-current-U$U-nsites$N-nsteps$nsteps.txt", "w")
+io = open("./Data/RK4/current-U$U-nsites$N-nsteps$nsteps.txt", "w")
 close(io)
-io = open("./Data/RK4Testing/mps-energy-U$U-nsites$N-nsteps$nsteps.txt", "w")
+io = open("./Data/RK4/energy-U$U-nsites$N-nsteps$nsteps.txt", "w")
 close(io)
 
 #Time evolution
@@ -85,13 +85,13 @@ close(io)
     energies[step + 1] = real(energy)
 end
 
-io = open("./Data/RK4Testing/mps-current-U$U-nsites$N-nsteps$nsteps.txt", "w")
+io = open("./Data/RK4/current-U$U-nsites$N-nsteps$nsteps.txt", "w")
 for step=1:nsteps
     write(io, "$(currents[step])\n")
 end
 close(io)
 
-io = open("./Data/RK4Testing/mps-energy-U$U-nsites$N-nsteps$nsteps.txt", "w")
+io = open("./Data/RK4/energy-U$U-nsites$N-nsteps$nsteps.txt", "w")
 for step=1:nsteps
     write(io, "$(energies[step])\n")
 end

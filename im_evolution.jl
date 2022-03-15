@@ -49,6 +49,9 @@ ham = get_itensor_ham(N, sites, 0, U)
 
 for nsteps in [1000, 2000, 3000, 4000, 5000], state in ["ground", "neel"]
 
+    io = open("./Data/RK4/im-$state-energy-U$U-nsites$N-nsteps$nsteps.txt", "w")
+    close(io)
+
     energies = zeros(nsteps)
 
     if state == "ground"
@@ -75,7 +78,7 @@ for nsteps in [1000, 2000, 3000, 4000, 5000], state in ["ground", "neel"]
         energies[step + 1] = real(energy)
     end
 
-    io = open("./Data/RK4Testing/im-$state-energy-U$U-nsites$N-nsteps$nsteps.txt", "w")
+    io = open("./Data/RK4/im-$state-energy-U$U-nsites$N-nsteps$nsteps.txt", "w")
     for step=1:nsteps
         write(io, "$(energies[step])\n")
     end
