@@ -21,6 +21,19 @@ struct Parameters
     strength
 end
 
+function get_normalized_MPS!(M::MPS; (lognorm!)=[])
+  c = ortho_lims(M)
+  lognorm_M = lognorm(M)
+  push!(lognorm!, lognorm_M)
+  z = exp(lognorm_M / length(c))
+  # XXX: this is not modifying `M` in-place.
+  # M[c] ./= z
+  for n in c
+    M[n] ./= z
+  end
+  return M
+end
+
 
 """
 Get the value of the transform limited pulse phi at time time
@@ -205,8 +218,8 @@ function get_itensor_ham(time, params)
              ur * op("Id",s1) * op("Nupdn", s2)
         push!(H, hj)
         end
-        return H
-    end
+    return H
+end
 
 """
 Get the time dependent current operator as an MPO at time corresponding to phi
