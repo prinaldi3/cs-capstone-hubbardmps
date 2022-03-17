@@ -2,6 +2,7 @@ using MKL
 using ITensors
 using LinearAlgebra
 include("evolve.jl")
+include("methods.jl")
 
 ITensors.Strided.set_num_threads(1)
 MKL.BLAS.set_num_threads(1)
@@ -32,11 +33,16 @@ F0 = iF0 * 1.944689151e-4 * (factor^2)
 
 # create the local hilbert space on N sites
 sites = siteinds("Electron", N; conserve_qns=true)
-H_ground = get_ham(N, sites, 0, U)
+
+# set up parameters struct
+params = Parameters(N, sites, U, a, cycles, omega0, F0)
+
+# get ground hamiltonian as an MPO
+H_ground = get_ham(0, params)
 
 # Prepare initial state MPS
 state = [isodd(n) ? "Up" : "Dn" for n=1:N]
-psi0_i = productMPS(sites , state)
+psi0_i = productMPS(params.space, state)
 
 # Do 8 sweeps of DMRG , gradually increasing the maximum MPS
 # bond dimension, at 12 sites, this gives precision to 7 sig figs
