@@ -44,7 +44,7 @@ Use second order TEBD to evolve psi(t) to psi (t + dt)
 """
 function TEBD(psi, dt, time, params)
 
-    phi = phi_tl(time, params)
+    phi = phi_tl(time + dt / 2, params)
 
     # odd gates (1,2),(3,4),(5,6),...
     ogates = ITensor[]
