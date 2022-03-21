@@ -41,10 +41,16 @@ Get the value of the transform limited pulse phi at time time
 Parameters:
     time - current time
     params - an instance of Parameters struct
+    independent - boolean that is True if we are evolving with a time independent
+                  Hamiltonian, and False otherwise
 """
-function phi_tl(time, params)
-    return (params.a * params.strength / params.field) \
-    * (sin(params.field * time / (2*params.cycles))^2) * sin(params.field * time)
+function phi_tl(time, params, independent)
+    if independent
+        return 0
+    else
+        return (params.a * params.strength / params.field) \
+        * (sin(params.field * time / (2*params.cycles))^2) * sin(params.field * time)
+    end
 end
 
 """
@@ -85,11 +91,8 @@ function propogation(ground::MPS, params, tf, method, dti, epsilon, independent)
     while time < tf
 
         # get the MPS at time + dt
-        if independent
-            next_psi = method(psi, dt, 0, params)
-        else
-            next_psi = method(psi, dt, time, params)
-        end
+        next_psi = method(psi, dt, time, params, independent)
+
         # calculate difference between current and next psi
         en = difference(psi, next_psi)
 
@@ -98,11 +101,7 @@ function propogation(ground::MPS, params, tf, method, dti, epsilon, independent)
             # adjust time step
             dt *= epsilon / en
             # get the next MPS and calculate difference
-            if independent
-                next_psi = method(psi, dt, 0, params)
-            else
-                next_psi = method(psi, dt, time, params)
-            end
+            next_psi = method(psi, dt, time, params, independent)
             en = difference(psi, next_psi)
         end
 
@@ -114,20 +113,14 @@ function propogation(ground::MPS, params, tf, method, dti, epsilon, independent)
         psi = deepcopy(next_psi)
 
         # calculate expectations
-        if independent
-            energies = vcat(energies, [inner(psi, get_ham(0, params))])
-            currents = vcat(currents, [inner(psi, get_current(0, params))])
-        else
-            energies = vcat(energies, [inner(psi, get_ham(time, params))])
-            currents = vcat(currents, [inner(psi, get_current(time, params))])
-        end
+        energies = vcat(energies, [inner(psi, get_ham(time, params, independent))])
+        currents = vcat(currents, [inner(psi, get_current(time, params, independent))])
 
         en1 = (en1 > 0) ? en1 : en
 
         # adjust for next time step
         # https://www.sciencedirect.com/science/article/pii/S0377042705001123
-        # ASK DENYS ABOUT BETA1, BETA2, AND ALPHA2
-        ndt = dt * (epsilon / en)^beta1 * (epsilon / en1)^beta2 * (dt / pdt)^(-alpha2)
+        ndt = dt * ((epsilon**2 * dt)/ (en * en1 * pdt))^(1/12)
 
         # update values for next iteration e_{n-1} -> e_n, dt_{n-1} = dt_n,
         # dt_n -> dt_{n+1}
@@ -144,12 +137,12 @@ Parameters:
     time
     params - an instance of the Parameters class
 """
-function get_ham(time, params)
+function get_ham(time, params, independent)
     # H = -t_0 \sum_j,sig \hat{c}^{\dag}_{j,sig} \hat{c}_{j+1,sig} + h.c
     #      + U \sum_j \hat{n}_{j, \uparrow} \hat{n}_{j, \downarrow}
 
     # get phi at time
-    phi = phi_tl(time, params)
+    phi = phi_tl(time, params, independent)
 
     # single particle hamiltonian
     one = OpSum()
@@ -189,10 +182,10 @@ Parameters:
     time
     params - an instance of the Parameters class
 """
-function get_current(time, params)
+function get_current(time, params, independent)
 
     # get phi at time
-    phi = phi_tl(time, params)
+    phi = phi_tl(time, params, independent)
 
     current = OpSum()
 

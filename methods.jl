@@ -1,4 +1,5 @@
 using ITensors
+include("evolve.jl")
 
 """
 Get the time dependent Hamiltonian as an ITensor at a time corresponding to phi
@@ -6,10 +7,10 @@ Parameters:
     time
     params - an instance of the Parameters class
 """
-function get_itensor_ham(time, params)
+function get_itensor_ham(time, params, independent)
 
     # get phi at time
-    phi = phi_tl(time, params)
+    phi = phi_tl(time, params, independent)
 
     H = ITensor[]
 
@@ -42,9 +43,9 @@ end
 """
 Use second order TEBD to evolve psi(t) to psi (t + dt)
 """
-function TEBD(psi, dt, time, params)
+function TEBD(psi, dt, time, params, independent)
 
-    phi = phi_tl(time + dt / 2, params)
+    phi = phi_tl(time + dt / 2, params, independent)
 
     # odd gates (1,2),(3,4),(5,6),...
     ogates = ITensor[]
@@ -90,18 +91,18 @@ function TEBD(psi, dt, time, params)
     return apply(gates, psi)
 end
 
-function RK4(psi, dt, time, params)
-    k1 = -1.0im * dt * apply(get_itensor_ham(time, params), psi)
-    k2 = -1.0im * dt * apply(get_itensor_ham(time + dt / 2, params), psi + 0.5 * k1)
-    k3 = -1.0im * dt * apply(get_itensor_ham(time + dt / 2, params), psi + 0.5 * k2)
-    k4 = -1.0im * dt * apply(get_itensor_ham(time + dt, params), psi + k3)
+function RK4(psi, dt, time, params, independent)
+    k1 = -1.0im * dt * apply(get_itensor_ham(time, params, independent), psi)
+    k2 = -1.0im * dt * apply(get_itensor_ham(time + dt / 2, params, independent), psi + 0.5 * k1)
+    k3 = -1.0im * dt * apply(get_itensor_ham(time + dt / 2, params, independent), psi + 0.5 * k2)
+    k4 = -1.0im * dt * apply(get_itensor_ham(time + dt, params, independent), psi + k3)
     next = psi + (1/6) * k1 + (1/3) * k2 + (1/3) * k3 + (1/6) * k4
     return get_normalized_MPS!(next)
 end
 
-function RK2(psi, dt, time, params)
-    k1 = -1.0im * dt * apply(get_itensor_ham(time, params), psi)
-    k2 = -1.0im * dt * apply(get_itensor_ham(time + dt, params), psi + k1)
+function RK2(psi, dt, time, params, independent)
+    k1 = -1.0im * dt * apply(get_itensor_ham(time, params, independent), psi)
+    k2 = -1.0im * dt * apply(get_itensor_ham(time + dt, params, independent), psi + k1)
     next = psi + 0.5 * (k1 + k2)
     return get_normalized_MPS!(next)
 end
