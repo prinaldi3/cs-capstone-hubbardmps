@@ -72,3 +72,8 @@ def phi_tl(time, p):
         p - an instance of Parameters
     """
     return (p.a * p.strength / p.field) * (np.sin(p.field * time / (2*p.cycles))**2) * np.sin(p.field * time)
+
+def phi_tracking(time, p, psi, hop_left, theta_t, target_current):
+    hop_left_psi = hop_left.dot(psi)
+    R = np.exp(-theta_t) * np.vdot(psi, hop_left_psi)
+    return np.arcsin( (-target_current) / (2*p.a*p.t0*R) ) + theta_t
