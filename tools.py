@@ -73,7 +73,15 @@ def phi_tl(time, p):
     """
     return (p.a * p.strength / p.field) * (np.sin(p.field * time / (2*p.cycles))**2) * np.sin(p.field * time)
 
-def phi_tracking(time, p, psi, hop_left, theta_t, target_current):
-    hop_left_psi = hop_left.dot(psi)
-    R = np.exp(-theta_t) * np.vdot(psi, hop_left_psi)
-    return np.arcsin( (-target_current) / (2*p.a*p.t0*R) ) + theta_t
+def phi_tracking(time, p, target_current, tebd):
+    """
+    Calculates phi(time) for some current expectation we would like to track
+    Params:
+        p - an instance of Parameters
+        target_current - the value of the current we are tracking at time
+        tebd - an instance of the Engine class
+    """
+    expec = tebd.nnop.H_MPO.expectation_value(tebd.psi)
+    r = np.sqrt(expec.real**2 + expec.imag**2)
+    theta = np.arctan(expec.imag / expec.real)
+    return np.arcsin( (-target_current) / (2*p.a*p.t0*r) ) + theta

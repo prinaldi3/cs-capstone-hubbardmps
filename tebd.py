@@ -367,7 +367,7 @@ class Engine:
                 hrs = int(seconds // 3600)
                 mins = int((seconds - 3600 * hrs) // 60)
                 scs = int(seconds - (3600 * hrs) - (60 * mins))
-                status = "Simulation status: {:.2f} -- ".format(complete * 100)
+                status = "Simulation status: {:.2f}% -- ".format(complete * 100)
                 status += "Estimated time remaining: {}:{}:{}".format(hrs, mins, scs)
                 print(status, end="\r")
                 self.time += delta_t
