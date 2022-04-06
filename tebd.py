@@ -46,7 +46,8 @@ from tenpy.linalg import np_conserved as npc
 from tenpy.algorithms.truncation import svd_theta, TruncationError
 from tenpy.tools.params import asConfig, Config
 from tenpy.linalg.random_matrix import CUE
-from tenpy.models.hubbard import FermiHubbardChain as FH
+
+from tools import FHHamiltonian, FHCurrent
 
 __all__ = ['Engine', 'RandomUnitaryEvolution']
 
@@ -122,6 +123,7 @@ class Engine:
         self.trunc_params = options.subconfig('trunc_params')
         self.psi = psi
         self.model = model
+        self.currentop = FHCurrent(0, p, phi_func)
         self.p = p
         self.phi_func = phi_func
         self.evolved_time = self.time = options.get('start_time', 0.)
@@ -180,76 +182,6 @@ class Engine:
                 time=time.time() - start_time,
             )
             print(msg, flush=True)
-
-    def run_GS(self):
-        """TEBD algorithm in imaginary time to find the ground state.
-
-        .. note ::
-            It is almost always more efficient (and hence advisable) to use DMRG.
-            This algorithms can nonetheless be used quite well as a benchmark and for comparison.
-
-        .. cfg:configoptions :: TEBD
-
-            delta_tau_list : list
-                A list of floats: the timesteps to be used.
-                Choosing a large timestep `delta_tau` introduces large (Trotter) errors,
-                but a too small time step requires a lot of steps to reach
-                ``exp(-tau H) --> |psi0><psi0|``.
-                Therefore, we start with fairly large time steps for a quick time evolution until
-                convergence, and the gradually decrease the time step.
-            order : int
-                Order of the Suzuki-Trotter decomposition.
-            N_steps : int
-                Number of steps before measurement can be performed
-        """
-        # initialize parameters
-        delta_tau_list = self.options.get(
-            'delta_tau_list',
-            [0.1, 0.01, 0.001, 1.e-4, 1.e-5, 1.e-6, 1.e-7, 1.e-8, 1.e-9, 1.e-10, 1.e-11, 0.])
-        max_error_E = self.options.get('max_error_E', 1.e-13)
-        N_steps = self.options.get('N_steps', 10)
-        TrotterOrder = self.options.get('order', 2)
-
-        Eold = np.average(self.model.bond_energies(self.psi))
-        if self.verbose >= 1:
-            Sold = np.average(self.psi.entanglement_entropy())
-            start_time = time.time()
-
-        for delta_tau in delta_tau_list:
-            if self.verbose >= 1:
-                print("delta_tau = {dt:e}".format(dt=delta_tau))
-            self.calc_U(TrotterOrder, delta_tau, type_evo='imag')
-            DeltaE = 2 * max_error_E
-            DeltaS = 2 * max_error_E
-            step = 0
-            while (DeltaE > max_error_E):
-                if self.psi.finite and TrotterOrder == 2:
-                    self.update_imag(N_steps)
-                else:
-                    self.update(N_steps)
-                step += N_steps
-                E = np.average(self.model.bond_energies(self.psi))
-                DeltaE = np.abs(Eold - E)
-                Eold = E
-                if self.verbose >= 1:
-                    S = np.average(self.psi.entanglement_entropy())
-                    DeltaS = np.abs(Sold - S)
-                    Sold = S
-                    msg = ("--> step={step:6d}, time={t:3.3f}, max chi={chi:d}, " +
-                           "Delta_E={dE:.2e}, E_bond={E:.10f}, Delta_S={dS:.4e}, " +
-                           "S={S:.10f}, time simulated: {time:.1f} s")
-                    msg = msg.format(
-                        step=step,
-                        t=self.evolved_time,
-                        chi=max(self.psi.chi),
-                        dE=DeltaE,
-                        dS=DeltaS,
-                        E=E.real,
-                        S=S.real,
-                        time=time.time() - start_time,
-                    )
-                    print(msg, flush=True)
-        # done
 
     @staticmethod
     def suzuki_trotter_time_steps(order):
@@ -417,7 +349,8 @@ class Engine:
         """
         trunc_err = TruncationError()
         order = self._U_param['order']
-        io = open("./Data/Tenpy/energies-U{}.txt", "w")
+        ti = time.time()
+        io = open("./Data/Tenpy/expectations-U{}.txt".format(self.p.u), "w")
         i = 0  # for keeping track of when a timestep completes
         # returns [(0, odd boolean), (1, even_boolean), (0, odd_boolean)] * N
         # boolean is actually just an integer 0 - false, 1 - true
@@ -428,36 +361,40 @@ class Engine:
             # the if statement indicates that one time step of the order 2
             # method ONLY has completed
             if i % 3 == 0:
+                t = time.time() - ti  # time simulation has been running
+                complete = i / (N_steps * 3)  # proportion complete (2nd order)
+                seconds = ((3 * t) / i) * (1 - complete) * N_steps  # time remaining
+                hrs = int(seconds // 3600)
+                mins = int((seconds - 3600 * hrs) // 60)
+                scs = int(seconds - (3600 * hrs) - (60 * mins))
+                status = "Simulation status: {:.2f} -- ".format(complete * 100)
+                status += "Estimated time remaining: {}:{}:{}".format(hrs, mins, scs)
+                print(status, end="\r")
                 self.time += delta_t
                 energy = np.sum(self.model.bond_energies(self.psi))
-                print("Time: {:.3f}, Energy: {:.5f}".format(self.time, energy))
-                io.write("{}, {}".format(self.time, energy))
+                current = self.currentop.H_MPO.expectation_value(self.psi)
+                io.write("{}, {}, {}\n".format(self.time, energy, current))
                 # now we must update the model which describes the hamiltonian
                 # and the time evolution operator for the next step
-                self.update_hamiltonian(io)
+                self.update_operators()
                 self.calc_U(order, delta_t, type_evo='real', E_offset=None)
-                io.write("\n")
+        print()
         self.evolved_time = self.evolved_time + N_steps * self._U_param['tau']
         self.trunc_err = self.trunc_err + trunc_err  # not += : make a copy!
         io.close()
         # (this is done to avoid problems of users storing self.trunc_err after each `update`)
         return trunc_err
 
-    def update_hamiltonian(self, io):
+    def update_operators(self):
         """
-        Update the Hamiltonian so it corresponds to the correct time
+        Update the Hamiltonian and the Current operator so they correspond to the correct time
         """
         del self.model
-        # since t0 is always scaled to 1, no need to scale by its value
-        t0 = np.exp(-1j * self.phi_func(self.time, self.p))
-        io.write(", {}".format(t0))
-        model_dict = {"bc_MPS":"finite", "cons_N":"N", "cons_Sz":"Sz", "explicit_plus_hc":True,
-        "L":self.p.nsites, "mu":0, "V":0, "U":self.p.u, "t":t0}
-        model_params = Config(model_dict, "FH-U{}-time{:.3f}".format(self.p.u, self.time))
-
-        model = FH(model_params)
-        model.init_terms(model_params)
+        del self.currentop
+        model = FHHamiltonian(self.time, self.p, self.phi_func)
+        currentop = FHCurrent(self.time, self.p, self.phi_func)
         self.model = model
+        self.currentop = currentop
 
 
     def update_step(self, U_idx_dt, odd):
@@ -572,103 +509,6 @@ class Engine:
         B_L /= renormalize  # re-normalize to <psi|psi> = 1
         self.psi.set_SR(i0, S)
         self.psi.set_B(i0, B_L, form='B')
-        self.psi.set_B(i1, B_R, form='B')
-        self._trunc_err_bonds[i] = self._trunc_err_bonds[i] + trunc_err
-        return trunc_err
-
-    def update_imag(self, N_steps):
-        """Perform an update suitable for imaginary time evolution.
-
-        Instead of the even/odd brick structure used for ordinary TEBD,
-        we 'sweep' from left to right and right to left, similar as DMRG.
-        Thanks to that, we are actually able to preserve the canonical form.
-
-        Parameters
-        ----------
-        N_steps : int
-            The number of steps for which the whole lattice should be updated.
-
-        Returns
-        -------
-        trunc_err : :class:`~tenpy.algorithms.truncation.TruncationError`
-            The error of the represented state which is introduced due to the truncation during
-            this sequence of update steps.
-        """
-        trunc_err = TruncationError()
-        order = self._U_param['order']
-        # allow only second order evolution
-        if order != 2 or not self.psi.finite:
-            # Would lead to loss of canonical form. What about DMRG?
-            raise NotImplementedError("Use DMRG instead...")
-        U_idx_dt = 0  # always with dt=0.5
-        assert (self.suzuki_trotter_time_steps(order)[U_idx_dt] == 0.5)
-        assert (self.psi.finite)  # finite or segment bc
-        Us = self._U[U_idx_dt]
-        for _ in range(N_steps):
-            # sweep right
-            for i_bond in range(self.psi.L):
-                if Us[i_bond] is None:
-                    if self.verbose >= 10:
-                        print("Skip U_bond element:", i_bond)
-                    continue  # handles finite vs. infinite boundary conditions
-                if self.verbose >= 10:
-                    print("Apply U_bond element", i_bond)
-                self._update_index = (U_idx_dt, i_bond)
-                trunc_err += self.update_bond_imag(i_bond, Us[i_bond])
-            # sweep left
-            for i_bond in range(self.psi.L - 1, -1, -1):
-                if Us[i_bond] is None:
-                    if self.verbose >= 10:
-                        print("Skip U_bond element:", i_bond)
-                    continue  # handles finite vs. infinite boundary conditions
-                if self.verbose >= 10:
-                    print("Apply U_bond element", i_bond)
-                self._update_index = (U_idx_dt, i_bond)
-                trunc_err += self.update_bond_imag(i_bond, Us[i_bond])
-        self._update_index = None
-        self.evolved_time = self.evolved_time + N_steps * self._U_param['tau']
-        self.trunc_err = self.trunc_err + trunc_err  # not += : make a copy!
-        # (this is done to avoid problems of users storing self.trunc_err after each `update`)
-        return trunc_err
-
-    def update_bond_imag(self, i, U_bond):
-        """Update a bond with a (possibly non-unitary) `U_bond`.
-
-        Similar as :meth:`update_bond`; but after the SVD just keep the `A, S, B` canonical form.
-        In that way, one can sweep left or right without using old singular values,
-        thus preserving the canonical form during imaginary time evolution.
-
-        Parameters
-        ----------
-        i : int
-            Bond index; we update the matrices at sites ``i-1, i``.
-        U_bond : :class:`~tenpy.linalg.np_conserved.Array`
-            The bond operator which we apply to the wave function.
-            We expect labels ``'p0', 'p1', 'p0*', 'p1*'``.
-
-        Returns
-        -------
-        trunc_err : :class:`~tenpy.algorithms.truncation.TruncationError`
-            The error of the represented state which is introduced by the truncation
-            during this update step.
-        """
-        i0, i1 = i - 1, i
-        if self.verbose >= 100:
-            print("Update sites ({0:d}, {1:d})".format(i0, i1))
-        # Construct the theta matrix
-        theta = self.psi.get_theta(i0, n=2)  # 'vL', 'vR', 'p0', 'p1'
-        theta = npc.tensordot(U_bond, theta, axes=(['p0*', 'p1*'], ['p0', 'p1']))
-        theta = theta.combine_legs([('vL', 'p0'), ('vR', 'p1')], qconj=[+1, -1])
-        # Perform the SVD and truncate the wavefunction
-        U, S, V, trunc_err, renormalize = svd_theta(theta,
-                                                    self.trunc_params,
-                                                    inner_labels=['vR', 'vL'])
-        self.psi.norm *= renormalize
-        # Split legs and update matrices
-        B_R = V.split_legs(1).ireplace_label('p1', 'p')
-        A_L = U.split_legs(0).ireplace_label('p0', 'p')
-        self.psi.set_SR(i0, S)
-        self.psi.set_B(i0, A_L, form='A')
         self.psi.set_B(i1, B_R, form='B')
         self._trunc_err_bonds[i] = self._trunc_err_bonds[i] + trunc_err
         return trunc_err
