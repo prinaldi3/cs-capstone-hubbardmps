@@ -41,6 +41,7 @@ If one chooses imaginary :math:`dt`, the exponential projects
 import numpy as np
 import time
 import warnings
+import datetime
 
 from tenpy.linalg import np_conserved as npc
 from tenpy.algorithms.truncation import svd_theta, TruncationError
@@ -168,7 +169,7 @@ class Engine:
         if self.verbose >= 1:
             Sold = np.average(self.psi.entanglement_entropy())
             start_time = time.time()
-        self.update(N_steps, delta_t)
+        trunc_err, times, energies, currents = self.update(N_steps, delta_t)
         if self.verbose >= 1:
             S = np.average(self.psi.entanglement_entropy())
             DeltaS = np.abs(Sold - S)
@@ -182,6 +183,7 @@ class Engine:
                 time=time.time() - start_time,
             )
             print(msg, flush=True)
+        return times, energies, currents
 
     @staticmethod
     def suzuki_trotter_time_steps(order):
@@ -311,13 +313,11 @@ class Engine:
             U_param['tau'] = -1.j * delta_t
         else:
             raise ValueError("Invalid value for `type_evo`: " + repr(type_evo))
-        if self._U_param == U_param:  # same keys and values as cached
-            if self.verbose >= 10:
-                print("Skip recalculation of U with same parameters as before: ", U_param)
-            return  # nothing to do: U is cached
+        # if self._U_param == U_param:  # same keys and values as cached
+        #     if self.verbose >= 10:
+        #         print("Skip recalculation of U with same parameters as before: ", U_param)
+        #     return  # nothing to do: U is cached
         self._U_param = U_param
-        if self.verbose >= 1:
-            print("Calculate U for ", U_param)
 
         L = self.psi.L
         self._U = []
@@ -350,7 +350,9 @@ class Engine:
         trunc_err = TruncationError()
         order = self._U_param['order']
         ti = time.time()
-        io = open("./Data/Tenpy/expectations-U{}.txt".format(self.p.u), "w")
+        times = []
+        energies = []
+        currents = []
         i = 0  # for keeping track of when a timestep completes
         # returns [(0, odd boolean), (1, even_boolean), (0, odd_boolean)] * N
         # boolean is actually just an integer 0 - false, 1 - true
@@ -368,22 +370,21 @@ class Engine:
                 mins = int((seconds - 3600 * hrs) // 60)
                 scs = int(seconds - (3600 * hrs) - (60 * mins))
                 status = "Simulation status: {:.2f}% -- ".format(complete * 100)
-                status += "Estimated time remaining: {}:{}:{}".format(hrs, mins, scs)
+                status += "Estimated time remaining: {}".format(datetime.time(hrs, mins, scs))
                 print(status, end="\r")
-                self.time += delta_t
-                energy = np.sum(self.model.bond_energies(self.psi))
-                current = self.currentop.H_MPO.expectation_value(self.psi)
-                io.write("{}, {}, {}\n".format(self.time, energy, current))
+                times.append(self.time)
+                energies.append(np.sum(self.model.bond_energies(self.psi)))
+                currents.append(self.currentop.H_MPO.expectation_value(self.psi))
                 # now we must update the model which describes the hamiltonian
                 # and the time evolution operator for the next step
+                self.time += delta_t
                 self.update_operators()
                 self.calc_U(order, delta_t, type_evo='real', E_offset=None)
         print()
         self.evolved_time = self.evolved_time + N_steps * self._U_param['tau']
         self.trunc_err = self.trunc_err + trunc_err  # not += : make a copy!
-        io.close()
         # (this is done to avoid problems of users storing self.trunc_err after each `update`)
-        return trunc_err
+        return trunc_err, np.array(times), np.array(energies), np.array(currents)
 
     def update_operators(self):
         """
