@@ -35,9 +35,6 @@ for uot in [0, .125, .25, .5, 1, 2, 4, 8]:
     for maxerr in [1e-13, 1e-14, 1e-15, 1e-16, 1e-17, 1e-18, 1e-19, 1e-20]:
         data.append((Parameters(N, uot * it, it, ia, cycles, iomega0, iF0), maxerr))
 
-pool = Pool()
-pool.starmap(runsim, data)
-
 def runsim(p, maxerr):
 
     model = FHHamiltonian(0, p, phi_func)
@@ -60,7 +57,7 @@ def runsim(p, maxerr):
     nsteps = 2000
     delta = (tf - ti) / nsteps
 
-    tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"svd_min":maxerr}, "N_steps":nsteps, "verbose":0}
+    tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"svd_min":maxerr, "chi_max":1000}, "N_steps":nsteps, "verbose":0}
     tebd_params = Config(tebd_dict, "TEBD-trunc_err{}-nsteps{}".format(maxerr, nsteps))
     tebd = TEBD(psi, model, p, phi_tl, tebd_params)
     times, energies, currents = tebd.run()
@@ -71,3 +68,6 @@ def runsim(p, maxerr):
     np.save(savedir + "times" + allps + ".npy", times)
     np.save(savedir + "energies" + allps + ecps + ".npy", energies)
     np.save(savedir + "currents" + allps + ecps + ".npy", currents)
+
+pool = Pool()
+pool.starmap(runsim, data)
