@@ -1,28 +1,7 @@
 import numpy as np
+from tools import phi_tl
 
-class Parameters:
-    """
-    This class contains the parameters necessary for evolution
-    """
-    def __init__(self, a, F0, field, t, U):
-        self.a = a
-        self.F0 = F0
-        self.field = field
-        self.freq = field / (2 * np.pi)
-        self.t = t
-        self.U = U
-
-def phi_tl(current_time, lat, cycles):
-    """
-    Calculates phi
-    :param current_time: time in the evolution
-    :return: phi
-    """
-    phi = (lat.a * lat.F0 / lat.field) * (np.sin(lat.field * current_time / (2. * cycles)) ** 2.) * np.sin(
-        lat.field * current_time)
-    return phi
-
-def evolve_psi(current_time, psi, onsite, hop_left, hop_right, lat, cycles, phi_func=phi_tl):
+def evolve_psi(current_time, psi, onsite, hop_left, hop_right, lat, phi_func=phi_tl):
     """
     Evolves psi
     :param current_time: time in evolution
@@ -30,18 +9,18 @@ def evolve_psi(current_time, psi, onsite, hop_left, hop_right, lat, cycles, phi_
     :param phi_func: the function used to calculate phi
     :return: -i * H|psi>
     """
+    freq = 2 * np.pi * lat.field
+    print("Simulation Progress: |" + "#" * int(current_time * freq) + " " * (10 - int(current_time * freq))
+          + "|" + "{:.2f}".format(current_time * freq * 10) + "%", end="\r")
 
-    # print("Simulation Progress: |" + "#" * int(current_time * lat.freq) + " " * (10 - int(current_time * lat.freq))
-    #       + "|" + "{:.2f}".format(current_time * lat.freq * 10) + "%", end="\r")
+    phi = phi_func(current_time, lat)
 
-    phi = phi_func(current_time, lat, cycles)
-
-    a = -1j * (-lat.t * (np.exp(-1j*phi)*hop_left.static.dot(psi) + np.exp(1j*phi)*hop_right.static.dot(psi))
-               + lat.U * onsite.static.dot(psi))
+    a = -1j * (-lat.t0 * (np.exp(-1j*phi)*hop_left.static.dot(psi) + np.exp(1j*phi)*hop_right.static.dot(psi))
+               + lat.u * onsite.static.dot(psi))
 
     return a
 
-def H_expec(psis, times, onsite, hop_left, hop_right, lat, cycles, phi_func=phi_tl):
+def H_expec(psis, times, onsite, hop_left, hop_right, lat, phi_func=phi_tl):
     """
     Calculates expectation of the hamiltonian
     :param psis: list of states at every point in the time evolution
@@ -53,10 +32,10 @@ def H_expec(psis, times, onsite, hop_left, hop_right, lat, cycles, phi_func=phi_
     for i in range(len(times)):
         current_time = times[i]
         psi = psis[:,i]
-        phi = phi_func(current_time, lat, cycles)
+        phi = phi_func(current_time, lat)
         # H|psi>
-        Hpsi = -lat.t * (np.exp(-1j*phi) * hop_left.dot(psi) + np.exp(1j*phi) * hop_right.dot(psi)) + \
-            lat.U * onsite.dot(psi)
+        Hpsi = -lat.t0 * (np.exp(-1j*phi) * hop_left.dot(psi) + np.exp(1j*phi) * hop_right.dot(psi)) + \
+            lat.u * onsite.dot(psi)
         # <psi|H|psi>
         expec.append((np.vdot(psi, Hpsi)).real)
     return np.array(expec)
@@ -73,9 +52,9 @@ def J_expec(psis, times, hop_left, hop_right, lat, cycles, phi_func=phi_tl):
     for i in range(len(times)):
         current_time = times[i]
         psi = psis[:,i]
-        phi = phi_func(current_time, lat, cycles)
+        phi = phi_func(current_time, lat)
         # J|psi>
-        Jpsi = -1j*lat.a*lat.t* (np.exp(-1j*phi) * hop_left.dot(psi) - np.exp(1j*phi) * hop_right.dot(psi))
+        Jpsi = -1j*lat.a*lat.t0* (np.exp(-1j*phi) * hop_left.dot(psi) - np.exp(1j*phi) * hop_right.dot(psi))
         # <psi|J|psi>
         expec.append((np.vdot(psi, Jpsi)).real)
     return np.array(expec)
