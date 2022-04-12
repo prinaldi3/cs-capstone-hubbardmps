@@ -9,7 +9,7 @@ from tools import Parameters
 N = 10
 # energy parameters, in units eV
 it = .52
-iU = 0 * it
+iU = 4 * it
 
 # lattice spacing, in angstroms
 ia = 4

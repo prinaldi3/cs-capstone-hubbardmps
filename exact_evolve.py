@@ -10,8 +10,6 @@ def evolve_psi(current_time, psi, onsite, hop_left, hop_right, lat, phi_func=phi
     :return: -i * H|psi>
     """
     freq = 2 * np.pi * lat.field
-    print("Simulation Progress: |" + "#" * int(current_time * freq) + " " * (10 - int(current_time * freq))
-          + "|" + "{:.2f}".format(current_time * freq * 10) + "%", end="\r")
 
     phi = phi_func(current_time, lat)
 
@@ -40,7 +38,7 @@ def H_expec(psis, times, onsite, hop_left, hop_right, lat, phi_func=phi_tl):
         expec.append((np.vdot(psi, Hpsi)).real)
     return np.array(expec)
 
-def J_expec(psis, times, hop_left, hop_right, lat, cycles, phi_func=phi_tl):
+def J_expec(psis, times, hop_left, hop_right, lat, phi_func=phi_tl):
     """
     Calculates expectation of the current density
     :param psis: list of states at every point in the time evolution

@@ -166,23 +166,7 @@ class Engine:
 
         self.calc_U(TrotterOrder, delta_t, type_evo='real', E_offset=None)
 
-        if self.verbose >= 1:
-            Sold = np.average(self.psi.entanglement_entropy())
-            start_time = time.time()
         trunc_err, times, energies, currents = self.update(N_steps, delta_t)
-        if self.verbose >= 1:
-            S = np.average(self.psi.entanglement_entropy())
-            DeltaS = np.abs(Sold - S)
-            msg = ("--> time={t:3.3f}, max_chi={chi:d}, "
-                   "Delta_S={dS:.4e}, S={S:.10f}, since last update: {time:.1f} s")
-            msg = msg.format(
-                t=self.evolved_time,
-                chi=max(self.psi.chi),
-                dS=DeltaS,
-                S=S.real,
-                time=time.time() - start_time,
-            )
-            print(msg, flush=True)
         return times, energies, currents
 
     @staticmethod
@@ -350,9 +334,9 @@ class Engine:
         trunc_err = TruncationError()
         order = self._U_param['order']
         ti = time.time()
-        times = []
-        energies = []
-        currents = []
+        times = [self.time]
+        energies = [np.sum(self.model.bond_energies(self.psi))]
+        currents = [self.currentop.H_MPO.expectation_value(self.psi)]
         i = 0  # for keeping track of when a timestep completes
         # returns [(0, odd boolean), (1, even_boolean), (0, odd_boolean)] * N
         # boolean is actually just an integer 0 - false, 1 - true
@@ -363,24 +347,24 @@ class Engine:
             # the if statement indicates that one time step of the order 2
             # method ONLY has completed
             if i % 3 == 0:
-                t = time.time() - ti  # time simulation has been running
-                complete = i / (N_steps * 3)  # proportion complete (2nd order)
-                seconds = ((3 * t) / i) * (1 - complete) * N_steps  # time remaining
-                hrs = int(seconds // 3600)
-                mins = int((seconds - 3600 * hrs) // 60)
-                scs = int(seconds - (3600 * hrs) - (60 * mins))
-                status = "Simulation status: {:.2f}% -- ".format(complete * 100)
-                status += "Estimated time remaining: {}".format(datetime.time(hrs, mins, scs))
-                print(status, end="\r")
+                self.time += delta_t
+                # t = time.time() - ti  # time simulation has been running
+                # complete = i / (N_steps * 3)  # proportion complete (2nd order)
+                # seconds = ((3 * t) / i) * (1 - complete) * N_steps  # time remaining
+                # hrs = int(seconds // 3600)
+                # mins = int((seconds - 3600 * hrs) // 60)
+                # scs = int(seconds - (3600 * hrs) - (60 * mins))
+                # status = "Simulation status: {:.2f}% -- ".format(complete * 100)
+                # status += "Estimated time remaining: {}".format(datetime.time(hrs, mins, scs))
+                # print(status, end="\r")
                 times.append(self.time)
                 energies.append(np.sum(self.model.bond_energies(self.psi)))
                 currents.append(self.currentop.H_MPO.expectation_value(self.psi))
                 # now we must update the model which describes the hamiltonian
                 # and the time evolution operator for the next step
-                self.time += delta_t
                 self.update_operators()
                 self.calc_U(order, delta_t, type_evo='real', E_offset=None)
-        print()
+        # print()
         self.evolved_time = self.evolved_time + N_steps * self._U_param['tau']
         self.trunc_err = self.trunc_err + trunc_err  # not += : make a copy!
         # (this is done to avoid problems of users storing self.trunc_err after each `update`)

@@ -85,3 +85,6 @@ def phi_tracking(time, p, target_current, tebd):
     r = np.sqrt(expec.real**2 + expec.imag**2)
     theta = np.arctan(expec.imag / expec.real)
     return np.arcsin( (-target_current) / (2*p.a*p.t0*r) ) + theta
+
+def relative_error(exact, mps):
+    return 100 * np.linalg.norm(exact - mps) / np.linalg.norm(exact)
