@@ -256,10 +256,11 @@ class Engine:
             # Using above definitions, we arrive at:
             # U = [a b a2 b c d c b a2 b a] * N
             #   = [a b a2 b c d c b a2 b] + [a2 b a2 b c d c b a2 b a] * (N-1) + [a]
-            steps = [a, b, a2, b, c, d, c, b, a2, b]
-            steps = steps + [a2, b, a2, b, c, d, c, b, a2, b] * (N_steps - 1)
-            steps = steps + [a]
-            return steps
+            # steps = [a, b, a2, b, c, d, c, b, a2, b]
+            # steps = steps + [a2, b, a2, b, c, d, c, b, a2, b] * (N_steps - 1)
+            # steps = steps + [a]
+            # return steps
+            return [a, b, a2, b, c, d, c, b, a2, b, a] * N_steps
         elif order == '4_opt':
             # symmetric: a1 b1 a2 b2 a3 b3 a2 b2 a2 b1 a1
             steps = [(0, odd), (1, even), (2, odd), (3, even), (4, odd),  (5, even),

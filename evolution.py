@@ -17,11 +17,12 @@ it = .52
 """IMPORTANT PARAMETERS"""
 ##########################
 phi_func = phi_tl
-maxerr = 1e-10  # used for DMRG
-maxdim = 50 # maximum bond dimension, used for TEBD
+maxerr = 1e-15  # used for DMRG
+maxdim = 1000 # maximum bond dimension, used for TEBD
 pbc = False
 N = 10
-iU = 0. * it
+iU = 4. * it
+pbc = False  # periodic boundary conditions
 
 """We will hold these parameters constant"""
 # lattice spacing, in angstroms
@@ -32,7 +33,7 @@ iomega0 = 32.9  # driving (angular) frequency, in THz
 cycles = 10
 
 
-p = Parameters(N, iU, it, ia, cycles, iomega0, iF0)
+p = Parameters(N, iU, it, ia, cycles, iomega0, iF0, pbc)
 
 # get the start time
 start_time = time.time()
@@ -43,8 +44,8 @@ state = ["up", "down"] * (N // 2)
 psi0_i = MPS.from_product_state(sites, state)
 
 # the max bond dimension
-chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 8:800}
-dmrg_dict = {"chi_list":chi_list, "max_E_err":maxerr, "max_sweeps":10, "mixer":True, "combine":False, "verbose":0}
+chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 8:maxdim}
+dmrg_dict = {"chi_list":chi_list, "max_E_err":maxerr, "max_sweeps":10, "mixer":True, "combine":False}
 dmrg_params = Config(dmrg_dict, "DMRG-maxerr{}".format(maxerr))
 dmrg = DMRG(psi0_i, model, dmrg_params)
 E, psi0 = dmrg.run()
@@ -57,7 +58,7 @@ nsteps = 2000
 times, delta = np.linspace(ti, tf, num=nsteps, endpoint=True, retstep=True)
 # we pass in nsteps - 1 because we would like to evauluate the system at
 # nsteps time points, including the ground state calculations
-tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"chi_max":maxdim}, "N_steps":nsteps-1, "verbose":0}
+tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"svd_min":maxerr, "chi_max":maxdim}, "N_steps":nsteps-1, "verbose":0}
 tebd_params = Config(tebd_dict, "TEBD-trunc_err{}-nsteps{}".format(maxerr, nsteps))
 tebd = TEBD(psi, model, p, phi_tl, tebd_params)
 times, energies, currents = tebd.run()
@@ -67,13 +68,15 @@ tot_time = time.time() - start_time
 print("Evolution complete, total time:", tot_time)
 
 # load exact data and calculate difference
-ecurrents = np.load("./Data/Exact/current-U{}-nsites{}-nsteps{}.npy".format(p.u, p.nsites, nsteps))
+eparams = "./Data/Exact/current-U{}-nsites{}-nsteps{}".format(p.u, p.nsites, nsteps)
+ecurrents = np.load(eparams + ".npy")
+etimes = np.load("./Data/Exact/times-nsteps{}.npy".format(nsteps))
 error = relative_error(ecurrents, currents)
 print("Error:", error)
 
 savedir = "./Data/Tenpy/Basic/"
 allps = "-nsteps{}".format(nsteps)
-ecps = "-nsites{}-U{}-maxdim{}".format(p.nsites, p.u, maxdim)
+ecps = "-nsites{}-U{}-maxdim{}-maxerr{}".format(p.nsites, p.u, maxdim, maxerr)
 np.save(savedir + "times" + allps + ".npy", times)
 np.save(savedir + "energies" + allps + ecps + ".npy", energies)
 np.save(savedir + "currents" + allps + ecps + ".npy", currents)
@@ -81,3 +84,8 @@ np.save(savedir + "currents" + allps + ecps + ".npy", currents)
 # write metadata to file (evolution time and error)
 with open(savedir + "metadata" + allps + ecps + ".txt", "w") as f:
     f.write(str(tot_time) + "\n" + str(error) + "\n")
+
+plt.plot(times, currents, label="MPS")
+plt.plot(etimes, ecurrents, label="exact", ls="dashed")
+plt.legend()
+plt.show()
