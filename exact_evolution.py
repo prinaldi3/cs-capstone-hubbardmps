@@ -6,10 +6,10 @@ import exact_evolve as evolve
 from tools import Parameters
 
 # system size
-N = 10
+N = 6
 # energy parameters, in units eV
 it = .52
-iU = 4 * it
+iU = 0 * it
 
 # lattice spacing, in angstroms
 ia = 4
@@ -22,7 +22,7 @@ cycles = 10
 # periodic boundary conditions
 pbc = False
 
-lat = Parameters(N, iU, it, ia, cycles, iomega0, iF0)
+lat = Parameters(N, iU, it, ia, cycles, iomega0, iF0, pbc)
 
 """System Evolution Time"""
 n_steps = 2000
@@ -33,8 +33,6 @@ times, delta = np.linspace(start, stop, num=n_steps, endpoint=True, retstep=True
 str = f"U{lat.u}-nsites{lat.nsites}-nsteps{n_steps}"  # for storing expectations
 if pbc:
     str += "-pbc"
-else:
-    str += "-obc"
 
 """create basis"""
 basis = spinful_fermion_basis_1d(N, Nf=(N//2, N//2))

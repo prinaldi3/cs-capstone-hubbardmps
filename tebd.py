@@ -256,10 +256,11 @@ class Engine:
             # Using above definitions, we arrive at:
             # U = [a b a2 b c d c b a2 b a] * N
             #   = [a b a2 b c d c b a2 b] + [a2 b a2 b c d c b a2 b a] * (N-1) + [a]
-            steps = [a, b, a2, b, c, d, c, b, a2, b]
-            steps = steps + [a2, b, a2, b, c, d, c, b, a2, b] * (N_steps - 1)
-            steps = steps + [a]
-            return steps
+            # steps = [a, b, a2, b, c, d, c, b, a2, b]
+            # steps = steps + [a2, b, a2, b, c, d, c, b, a2, b] * (N_steps - 1)
+            # steps = steps + [a]
+            # return steps
+            return [a, b, a2, b, c, d, c, b, a2, b, a] * N_steps
         elif order == '4_opt':
             # symmetric: a1 b1 a2 b2 a3 b3 a2 b2 a2 b1 a1
             steps = [(0, odd), (1, even), (2, odd), (3, even), (4, odd),  (5, even),
@@ -348,15 +349,15 @@ class Engine:
             # method ONLY has completed
             if i % 3 == 0:
                 self.time += delta_t
-                # t = time.time() - ti  # time simulation has been running
-                # complete = i / (N_steps * 3)  # proportion complete (2nd order)
-                # seconds = ((3 * t) / i) * (1 - complete) * N_steps  # time remaining
-                # hrs = int(seconds // 3600)
-                # mins = int((seconds - 3600 * hrs) // 60)
-                # scs = int(seconds - (3600 * hrs) - (60 * mins))
-                # status = "Simulation status: {:.2f}% -- ".format(complete * 100)
-                # status += "Estimated time remaining: {}".format(datetime.time(hrs, mins, scs))
-                # print(status, end="\r")
+                t = time.time() - ti  # time simulation has been running
+                complete = i / (N_steps * 3)  # proportion complete (2nd order)
+                seconds = ((3 * t) / i) * (1 - complete) * N_steps  # time remaining
+                hrs = int(seconds // 3600)
+                mins = int((seconds - 3600 * hrs) // 60)
+                scs = int(seconds - (3600 * hrs) - (60 * mins))
+                status = "Simulation status: {:.2f}% -- ".format(complete * 100)
+                status += "Estimated time remaining: {}".format(datetime.time(hrs, mins, scs))
+                print(status, end="\r")
                 times.append(self.time)
                 energies.append(np.sum(self.model.bond_energies(self.psi)))
                 currents.append(self.currentop.H_MPO.expectation_value(self.psi))
@@ -364,7 +365,7 @@ class Engine:
                 # and the time evolution operator for the next step
                 self.update_operators()
                 self.calc_U(order, delta_t, type_evo='real', E_offset=None)
-        # print()
+        print()
         self.evolved_time = self.evolved_time + N_steps * self._U_param['tau']
         self.trunc_err = self.trunc_err + trunc_err  # not += : make a copy!
         # (this is done to avoid problems of users storing self.trunc_err after each `update`)

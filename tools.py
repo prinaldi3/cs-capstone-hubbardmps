@@ -11,7 +11,7 @@ class Parameters:
     input units: eV (t, U)
     """
 
-    def __init__(self, nsites, u, t, a, cycles, field, strength):
+    def __init__(self, nsites, u, t, a, cycles, field, strength, pbc):
         self.nsites = nsites
         self.nup = nsites // 2 + nsites % 2
         self.ndown = nsites // 2
@@ -26,6 +26,8 @@ class Parameters:
         self.field = field * factor * 0.0001519828442
         self.a = a * 1.889726125/factor
         self.strength = strength * 1.944689151e-4 * (factor**2)
+
+        self.pbc = pbc #periodic boundary conditions
 
 class FHHamiltonian(FermiHubbardChain):
     def __init__(self, curr_time, p, phi_func):
