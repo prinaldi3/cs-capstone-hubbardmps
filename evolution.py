@@ -20,9 +20,10 @@ phi_func = phi_tl
 maxerr = 1e-15  # used for DMRG
 maxdim = 1000 # maximum bond dimension, used for TEBD
 pbc = False
-N = 10
-iU = 4. * it
+N = 6
+iU = 0 * it
 pbc = False  # periodic boundary conditions
+nsteps = 2000
 
 """We will hold these parameters constant"""
 # lattice spacing, in angstroms
@@ -54,7 +55,6 @@ psi = psi0
 
 ti = 0
 tf = 2 * np.pi * cycles / p.field
-nsteps = 2000
 times, delta = np.linspace(ti, tf, num=nsteps, endpoint=True, retstep=True)
 # we pass in nsteps - 1 because we would like to evauluate the system at
 # nsteps time points, including the ground state calculations

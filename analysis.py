@@ -8,7 +8,6 @@ from tenpy.algorithms.truncation import TruncationError
 from tools import *
 
 import numpy as np
-from multiprocessing import Pool
 from matplotlib import pyplot as plt
 import time
 
@@ -18,11 +17,13 @@ it = .52
 """IMPORTANT PARAMETERS"""
 ##########################
 phi_func = phi_tl
-maxerr = 1e-10  # used for DMRG
+maxerr = 1e-15  # used for DMRG
 maxdim = 1000 # maximum bond dimension, used for TEBD
 pbc = False
 N = 10
-iU = 0. * it
+iU = 0 * it
+pbc = False  # periodic boundary conditions
+nsteps = 2000
 
 """We will hold these parameters constant"""
 # lattice spacing, in angstroms
@@ -32,51 +33,53 @@ iF0 = 10  # field strength in MV/cm
 iomega0 = 32.9  # driving (angular) frequency, in THz
 cycles = 10
 
-data = [Parameters(N, uot, it, ia, cycles, iomega0, iF0) for uot in [0, 0.125, 0.25, 0.5, 1, 2, 4, 8]]
+data = []
+for nsteps in [1000, 2000, 3000, 4000, 5000]:
+    for uot in [0., .125, .25, .5, 1., 2., 4., 8.]:
+        data.append((Parameters(N, uot * it, it, ia, cycles, iomega0, iF0, pbc), nsteps))
 
-def run_sim(p):
-    error = 10
-    maxdim = 900
+def simulate(p, nsteps):
+    # get the start time
+    start_time = time.time()
+    model = FHHamiltonian(0, p, phi_func)
+    current = FHCurrent(0, p, phi_func)
+    sites = model.lat.mps_sites()
+    state = ["up", "down"] * (p.nsites // 2)
+    psi0_i = MPS.from_product_state(sites, state)
 
-    while error > 5.:
-        maxdim += 100
-        # get the start time
-        start_time = time.time()
-        model = FHHamiltonian(0, p, phi_func)
-        current = FHCurrent(0, p, phi_func)
-        sites = model.lat.mps_sites()
-        state = ["up", "down"] * (N // 2)
-        psi0_i = MPS.from_product_state(sites, state)
+    # the max bond dimension
+    chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 8:maxdim}
+    dmrg_dict = {"chi_list":chi_list, "max_E_err":maxerr, "max_sweeps":10, "mixer":True, "combine":False}
+    dmrg_params = Config(dmrg_dict, "DMRG-maxerr{}".format(maxerr))
+    dmrg = DMRG(psi0_i, model, dmrg_params)
+    E, psi0 = dmrg.run()
 
-        # the max bond dimension
-        chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 8:maxdim}
-        dmrg_dict = {"chi_list":chi_list, "max_E_err":maxerr, "max_sweeps":10, "mixer":True, "combine":False, "verbose":0}
-        dmrg_params = Config(dmrg_dict, "DMRG-maxerr{}".format(maxerr))
-        dmrg = DMRG(psi0_i, model, dmrg_params)
-        E, psi0 = dmrg.run()
+    psi = psi0
 
-        psi = psi0
+    ti = 0
+    tf = 2 * np.pi * cycles / p.field
+    times, delta = np.linspace(ti, tf, num=nsteps, endpoint=True, retstep=True)
+    # we pass in nsteps - 1 because we would like to evauluate the system at
+    # nsteps time points, including the ground state calculations
+    tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"svd_min":maxerr, "chi_max":maxdim}, "N_steps":nsteps-1, "verbose":0}
+    tebd_params = Config(tebd_dict, "TEBD-trunc_err{}-nsteps{}".format(maxerr, nsteps))
+    tebd = TEBD(psi, model, p, phi_tl, tebd_params)
+    times, energies, currents = tebd.run()
 
-        ti = 0
-        tf = 2 * np.pi * cycles / p.field
-        nsteps = 2000
-        times, delta = np.linspace(ti, tf, num=nsteps, endpoint=True, retstep=True)
-        # we pass in nsteps - 1 because we would like to evauluate the system at
-        # nsteps time points, including the ground state calculations
-        tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"chi_max":maxdim}, "N_steps":nsteps-1, "verbose":0}
-        tebd_params = Config(tebd_dict, "TEBD-trunc_err{}-nsteps{}".format(maxerr, nsteps))
-        tebd = TEBD(psi, model, p, phi_tl, tebd_params)
-        times, energies, currents = tebd.run()
+    tot_time = time.time() - start_time
 
-        tot_time = time.time() - start_time
+    print("Evolution complete, total time:", tot_time)
 
-        # load exact data and calculate difference
-        ecurrents = np.load("./Data/Exact/current-U{}-nsites{}-nsteps{}.npy".format(p.u, p.nsites, nsteps))
-        error = relative_error(ecurrents, currents)
+    # load exact data and calculate difference
+    eparams = "./Data/Exact/current-U{}-nsites{}-nsteps{}".format(p.u, p.nsites, nsteps)
+    ecurrents = np.load(eparams + ".npy")
+    etimes = np.load("./Data/Exact/times-nsteps{}.npy".format(nsteps))
+    error = relative_error(ecurrents, currents)
+    print("Error:", error)
 
     savedir = "./Data/Tenpy/Basic/"
     allps = "-nsteps{}".format(nsteps)
-    ecps = "-nsites{}-U{}-maxdim{}".format(p.nsites, p.u, maxdim)
+    ecps = "-nsites{}-U{}-maxdim{}-maxerr{}".format(p.nsites, p.u, maxdim, maxerr)
     np.save(savedir + "times" + allps + ".npy", times)
     np.save(savedir + "energies" + allps + ecps + ".npy", energies)
     np.save(savedir + "currents" + allps + ecps + ".npy", currents)
@@ -84,7 +87,3 @@ def run_sim(p):
     # write metadata to file (evolution time and error)
     with open(savedir + "metadata" + allps + ecps + ".txt", "w") as f:
         f.write(str(tot_time) + "\n" + str(error) + "\n")
-    print("Done:", p.u)
-
-with Pool() as pool:
-    pool.map(run_sim, data)
