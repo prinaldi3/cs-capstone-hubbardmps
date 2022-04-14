@@ -9,7 +9,6 @@ from tools import *
 
 import numpy as np
 from multiprocessing import Pool
-from matplotlib import pyplot as plt
 import time
 
 # energy parameters, in units eV
@@ -18,7 +17,7 @@ it = .52
 """IMPORTANT PARAMETERS"""
 ##########################
 phi_func = phi_tl
-maxerr = 1e-10  # used for DMRG
+maxerr = 1e-12  # used for DMRG
 maxdim = 1000 # maximum bond dimension, used for TEBD
 pbc = False
 N = 10
@@ -32,11 +31,11 @@ iF0 = 10  # field strength in MV/cm
 iomega0 = 32.9  # driving (angular) frequency, in THz
 cycles = 10
 
-data = [Parameters(N, uot, it, ia, cycles, iomega0, iF0) for uot in [0, 0.125, 0.25, 0.5, 1, 2, 4, 8]]
+data = [Parameters(N, uot * it, it, ia, cycles, iomega0, iF0) for uot in [0, 0.125, 0.25, 0.5, 1, 2, 4, 8]]
 
 def run_sim(p):
     error = 10
-    maxdim = 900
+    maxdim = 1000
 
     while error > 5.:
         maxdim += 100
@@ -63,8 +62,8 @@ def run_sim(p):
         times, delta = np.linspace(ti, tf, num=nsteps, endpoint=True, retstep=True)
         # we pass in nsteps - 1 because we would like to evauluate the system at
         # nsteps time points, including the ground state calculations
-        tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"chi_max":maxdim}, "N_steps":nsteps-1, "verbose":0}
-        tebd_params = Config(tebd_dict, "TEBD-trunc_err{}-nsteps{}".format(maxerr, nsteps))
+        tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"trunc_err":maxerr, "chi_max":maxdim}, "N_steps":nsteps-1, "verbose":0}
+        tebd_params = Config(tebd_dict, "TEBD-chi_max{}-nsteps{}".format(maxdim, nsteps))
         tebd = TEBD(psi, model, p, phi_tl, tebd_params)
         times, energies, currents = tebd.run()
 
@@ -73,6 +72,7 @@ def run_sim(p):
         # load exact data and calculate difference
         ecurrents = np.load("./Data/Exact/current-U{}-nsites{}-nsteps{}.npy".format(p.u, p.nsites, nsteps))
         error = relative_error(ecurrents, currents)
+        print("Relative error ({}): {}".format(p.u, error))
 
     savedir = "./Data/Tenpy/Basic/"
     allps = "-nsteps{}".format(nsteps)
@@ -86,5 +86,4 @@ def run_sim(p):
         f.write(str(tot_time) + "\n" + str(error) + "\n")
     print("Done:", p.u)
 
-with Pool() as pool:
-    pool.map(run_sim, data)
+run_sim(data[0])
