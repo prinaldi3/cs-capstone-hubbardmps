@@ -21,7 +21,7 @@ maxerr = 1e-15  # used for DMRG
 maxdim = 1000 # maximum bond dimension, used for TEBD
 pbc = False
 N = 10
-iU = 0 * it
+iU = 1 * it
 pbc = False  # periodic boundary conditions
 nsteps = 2000
 
@@ -33,12 +33,10 @@ iF0 = 10  # field strength in MV/cm
 iomega0 = 32.9  # driving (angular) frequency, in THz
 cycles = 10
 
-data = []
-for nsteps in [1000, 2000, 3000, 4000, 5000]:
-    for uot in [0., .125, .25, .5, 1., 2., 4., 8.]:
-        data.append((Parameters(N, uot * it, it, ia, cycles, iomega0, iF0, pbc), nsteps))
+data = [(Parameters(N, iU, it, ia, cycles, iomega0, iF0, pbc), nsteps, N * 100)
+        for N in range(12, 31, 2)]
 
-def simulate(p, nsteps):
+def simulate(p, nsteps, maxdim):
     # get the start time
     start_time = time.time()
     model = FHHamiltonian(0, p, phi_func)
@@ -48,7 +46,7 @@ def simulate(p, nsteps):
     psi0_i = MPS.from_product_state(sites, state)
 
     # the max bond dimension
-    chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 8:maxdim}
+    chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 7:800, 8:maxdim}
     dmrg_dict = {"chi_list":chi_list, "max_E_err":maxerr, "max_sweeps":10, "mixer":True, "combine":False}
     dmrg_params = Config(dmrg_dict, "DMRG-maxerr{}".format(maxerr))
     dmrg = DMRG(psi0_i, model, dmrg_params)
@@ -70,12 +68,12 @@ def simulate(p, nsteps):
 
     print("Evolution complete, total time:", tot_time)
 
-    # load exact data and calculate difference
-    eparams = "./Data/Exact/current-U{}-nsites{}-nsteps{}".format(p.u, p.nsites, nsteps)
-    ecurrents = np.load(eparams + ".npy")
-    etimes = np.load("./Data/Exact/times-nsteps{}.npy".format(nsteps))
-    error = relative_error(ecurrents, currents)
-    print("Error:", error)
+    # # load exact data and calculate difference
+    # eparams = "./Data/Exact/current-U{}-nsites{}-nsteps{}".format(p.u, p.nsites, nsteps)
+    # ecurrents = np.load(eparams + ".npy")
+    # etimes = np.load("./Data/Exact/times-nsteps{}.npy".format(nsteps))
+    # error = relative_error(ecurrents, currents)
+    # print("Error:", error)
 
     savedir = "./Data/Tenpy/Basic/"
     allps = "-nsteps{}".format(nsteps)
@@ -86,4 +84,7 @@ def simulate(p, nsteps):
 
     # write metadata to file (evolution time and error)
     with open(savedir + "metadata" + allps + ecps + ".txt", "w") as f:
-        f.write(str(tot_time) + "\n" + str(error) + "\n")
+        f.write(str(tot_time) + "\n")
+
+for arg in data:
+    simulate(*arg)
