@@ -48,7 +48,7 @@ from tenpy.algorithms.truncation import svd_theta, TruncationError
 from tenpy.tools.params import asConfig, Config
 from tenpy.linalg.random_matrix import CUE
 
-from tools import FHHamiltonian, FHCurrent
+from tools import FHHamiltonian, FHCurrent, FHNearestNeighbor, phi_tl
 
 __all__ = ['Engine', 'RandomUnitaryEvolution']
 
@@ -120,11 +120,11 @@ class Engine:
     """
     def __init__(self, psi, model, p, phi_func, options):
         self.options = options = asConfig(options, "TEBD")
-        self.verbose = options.verbose
         self.trunc_params = options.subconfig('trunc_params')
         self.psi = psi
         self.model = model
-        self.currentop = FHCurrent(0, p, phi_func)
+        self.currentop = FHCurrent(0, p, phi_tl)
+        self.nnop = FHNearestNeighbor(p)  # nearest neighbor operator
         self.p = p
         self.phi_func = phi_func
         self.evolved_time = self.time = options.get('start_time', 0.)
@@ -144,7 +144,7 @@ class Engine:
         """truncation error introduced on each non-trivial bond."""
         return self._trunc_err_bonds[self.psi.nontrivial_bonds]
 
-    def run(self):
+    def run(self, tracking_current=None):
         """(Real-)time evolution with TEBD (time evolving block decimation).
 
         .. cfg:configoptions :: TEBD
@@ -166,7 +166,7 @@ class Engine:
 
         self.calc_U(TrotterOrder, delta_t, type_evo='real', E_offset=None)
 
-        trunc_err, times, energies, currents = self.update(N_steps, delta_t)
+        trunc_err, times, energies, currents = self.update(N_steps, delta_t, tracking_current)
         return times, energies, currents
 
     @staticmethod
@@ -318,13 +318,15 @@ class Engine:
             self._U.append(U_bond)
         # done
 
-    def update(self, N_steps, delta_t):
+    def update(self, N_steps, delta_t, tracking_current):
         """Evolve by ``N_steps * U_param['dt']``.
 
         Parameters
         ----------
         N_steps : int
             The number of steps for which the whole lattice should be updated.
+        tracking_current : np.array
+            The current we would like to track
 
         Returns
         -------
@@ -363,22 +365,28 @@ class Engine:
                 currents.append(self.currentop.H_MPO.expectation_value(self.psi))
                 # now we must update the model which describes the hamiltonian
                 # and the time evolution operator for the next step
-                self.update_operators()
+                if tracking_current is not None:
+                    self.update_operators(tracking_current[int(i / 3)])
+                else:
+                    self.update_operators(None)
                 self.calc_U(order, delta_t, type_evo='real', E_offset=None)
-        print()
+        # print()
         self.evolved_time = self.evolved_time + N_steps * self._U_param['tau']
         self.trunc_err = self.trunc_err + trunc_err  # not += : make a copy!
         # (this is done to avoid problems of users storing self.trunc_err after each `update`)
         return trunc_err, np.array(times), np.array(energies), np.array(currents)
 
-    def update_operators(self):
+    def update_operators(self, tcurrent):
         """
         Update the Hamiltonian and the Current operator so they correspond to the correct time
         """
         del self.model
         del self.currentop
-        model = FHHamiltonian(self.time, self.p, self.phi_func)
-        currentop = FHCurrent(self.time, self.p, self.phi_func)
+        args = []
+        if tcurrent is not None:
+            args = [tcurrent, self]
+        model = FHHamiltonian(self.time, self.p, self.phi_func, args)
+        currentop = FHCurrent(self.time, self.p, self.phi_func, args)
         self.model = model
         self.currentop = currentop
 
@@ -418,11 +426,7 @@ class Engine:
         trunc_err = TruncationError()
         for i_bond in np.arange(int(odd) % 2, self.psi.L, 2):
             if Us[i_bond] is None:
-                if self.verbose >= 10:
-                    print("Skip U_bond element:", i_bond)
                 continue  # handles finite vs. infinite boundary conditions
-            if self.verbose >= 10:
-                print("Apply U_bond element", i_bond)
             self._update_index = (U_idx_dt, i_bond)
             trunc_err += self.update_bond(i_bond, Us[i_bond])
         self._update_index = None
@@ -454,8 +458,6 @@ class Engine:
             during this update step.
         """
         i0, i1 = i - 1, i
-        if self.verbose >= 100:
-            print("Update sites ({0:d}, {1:d})".format(i0, i1))
         # Construct the theta matrix
         C = self.psi.get_theta(i0, n=2, formL=0.)  # the two B without the S on the left
         C = npc.tensordot(U_bond, C, axes=(['p0*', 'p1*'], ['p0', 'p1']))  # apply U

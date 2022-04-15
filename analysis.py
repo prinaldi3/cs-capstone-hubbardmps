@@ -8,7 +8,7 @@ from tenpy.algorithms.truncation import TruncationError
 from tools import *
 
 import numpy as np
-from matplotlib import pyplot as plt
+from multiprocessing import Pool
 import time
 
 # energy parameters, in units eV
@@ -17,7 +17,7 @@ it = .52
 """IMPORTANT PARAMETERS"""
 ##########################
 phi_func = phi_tl
-maxerr = 1e-15  # used for DMRG
+maxerr = 1e-12  # used for DMRG
 maxdim = 1000 # maximum bond dimension, used for TEBD
 pbc = False
 N = 10
@@ -36,7 +36,8 @@ cycles = 10
 data = [(Parameters(N, iU, it, ia, cycles, iomega0, iF0, pbc), nsteps, N * 100)
         for N in range(12, 31, 2)]
 
-def simulate(p, nsteps, maxdim):
+def simulate(p, nsteps):
+    print("Starting: U = {}, nsteps = {}".format(p.u, nsteps))
     # get the start time
     start_time = time.time()
     model = FHHamiltonian(0, p, phi_func)
@@ -59,14 +60,14 @@ def simulate(p, nsteps, maxdim):
     times, delta = np.linspace(ti, tf, num=nsteps, endpoint=True, retstep=True)
     # we pass in nsteps - 1 because we would like to evauluate the system at
     # nsteps time points, including the ground state calculations
-    tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"svd_min":maxerr, "chi_max":maxdim}, "N_steps":nsteps-1, "verbose":0}
+    tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"svd_min":maxerr, "chi_max":maxdim}, "N_steps":nsteps-1}
     tebd_params = Config(tebd_dict, "TEBD-trunc_err{}-nsteps{}".format(maxerr, nsteps))
     tebd = TEBD(psi, model, p, phi_tl, tebd_params)
     times, energies, currents = tebd.run()
 
     tot_time = time.time() - start_time
 
-    print("Evolution complete, total time:", tot_time)
+    # print("Evolution complete, total time:", tot_time)
 
     # # load exact data and calculate difference
     # eparams = "./Data/Exact/current-U{}-nsites{}-nsteps{}".format(p.u, p.nsites, nsteps)
@@ -84,7 +85,8 @@ def simulate(p, nsteps, maxdim):
 
     # write metadata to file (evolution time and error)
     with open(savedir + "metadata" + allps + ecps + ".txt", "w") as f:
-        f.write(str(tot_time) + "\n")
+        f.write(str(tot_time) + "\n" )
+    print("Done " +allps +ecps)
 
-for arg in data:
-    simulate(*arg)
+with Pool(40) as pool:
+    pool.starmap(simulate, data)
