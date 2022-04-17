@@ -123,7 +123,7 @@ class Engine:
         self.trunc_params = options.subconfig('trunc_params')
         self.psi = psi
         self.model = model
-        self.currentop = FHCurrent(0, p, phi_tl)
+        self.currentop = FHCurrent(p, 0)
         self.nnop = FHNearestNeighbor(p)  # nearest neighbor operator
         self.p = p
         self.phi_func = phi_func
@@ -166,8 +166,8 @@ class Engine:
 
         self.calc_U(TrotterOrder, delta_t, type_evo='real', E_offset=None)
 
-        trunc_err, times, energies, currents = self.update(N_steps, delta_t, tracking_current)
-        return times, energies, currents
+        trunc_err, times, energies, currents, phis = self.update(N_steps, delta_t, tracking_current)
+        return times, energies, currents, phis
 
     @staticmethod
     def suzuki_trotter_time_steps(order):
@@ -340,6 +340,7 @@ class Engine:
         times = [self.time]
         energies = [np.sum(self.model.bond_energies(self.psi))]
         currents = [self.currentop.H_MPO.expectation_value(self.psi)]
+        phis = [0.]  # for tracking purposes
         i = 0  # for keeping track of when a timestep completes
         # returns [(0, odd boolean), (1, even_boolean), (0, odd_boolean)] * N
         # boolean is actually just an integer 0 - false, 1 - true
@@ -354,11 +355,14 @@ class Engine:
                 t = time.time() - ti  # time simulation has been running
                 complete = i / (N_steps * 3)  # proportion complete (2nd order)
                 seconds = ((3 * t) / i) * (1 - complete) * N_steps  # time remaining
+                days = int(seconds // (3600 * 24))
+                seconds = seconds % (3600 * 24)
                 hrs = int(seconds // 3600)
-                mins = int((seconds - 3600 * hrs) // 60)
-                scs = int(seconds - (3600 * hrs) - (60 * mins))
+                seconds = seconds % 3600
+                mins = int(seconds // 60)
+                seconds = int(seconds % 60)
                 status = "Simulation status: {:.2f}% -- ".format(complete * 100)
-                status += "Estimated time remaining: {}".format(datetime.time(hrs, mins, scs))
+                status += "Estimated time remaining: {} days, {}".format(days, datetime.time(hrs, mins, seconds))
                 print(status, end="\r")
                 times.append(self.time)
                 energies.append(np.sum(self.model.bond_energies(self.psi)))
@@ -366,7 +370,8 @@ class Engine:
                 # now we must update the model which describes the hamiltonian
                 # and the time evolution operator for the next step
                 if tracking_current is not None:
-                    self.update_operators(tracking_current[int(i / 3)])
+                    phi = self.update_operators(tracking_current[int(i / 3)])
+                    phis.append(phi)
                 else:
                     self.update_operators(None)
                 self.calc_U(order, delta_t, type_evo='real', E_offset=None)
@@ -374,7 +379,7 @@ class Engine:
         self.evolved_time = self.evolved_time + N_steps * self._U_param['tau']
         self.trunc_err = self.trunc_err + trunc_err  # not += : make a copy!
         # (this is done to avoid problems of users storing self.trunc_err after each `update`)
-        return trunc_err, np.array(times), np.array(energies), np.array(currents)
+        return trunc_err, np.array(times), np.array(energies), np.array(currents), np.array(phis)
 
     def update_operators(self, tcurrent):
         """
@@ -385,10 +390,12 @@ class Engine:
         args = []
         if tcurrent is not None:
             args = [tcurrent, self]
-        model = FHHamiltonian(self.time, self.p, self.phi_func, args)
-        currentop = FHCurrent(self.time, self.p, self.phi_func, args)
+        phi = self.phi_func(self.time, self.p, *args)
+        model = FHHamiltonian(self.p, phi)
+        currentop = FHCurrent(self.p, phi)
         self.model = model
         self.currentop = currentop
+        return phi
 
 
     def update_step(self, U_idx_dt, odd):

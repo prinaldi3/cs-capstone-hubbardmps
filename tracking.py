@@ -53,8 +53,8 @@ state = ["up", "down"] * (N // 2)
 psi0_i = MPS.from_product_state(sites, state)
 
 # the max bond dimension
-chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 8:maxdim}
-dmrg_dict = {"chi_list":chi_list, "max_E_err":maxerr, "max_sweeps":10, "mixer":True, "combine":False}
+chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 8:1200, 10:maxdim}
+dmrg_dict = {"chi_list":chi_list, "max_E_err":maxerr, "max_sweeps":12, "mixer":True, "combine":False}
 dmrg_params = Config(dmrg_dict, "DMRG-maxerr{}".format(maxerr))
 dmrg = DMRG(psi0_i, model, dmrg_params)
 E, psi0 = dmrg.run()

@@ -30,8 +30,8 @@ class Parameters:
         self.pbc = pbc #periodic boundary conditions
 
 class FHHamiltonian(FermiHubbardChain):
-    def __init__(self, curr_time, p, phi_func, args=[]):
-        t0 = p.t0 * np.exp(-1j * phi_func(curr_time, p, *args))
+    def __init__(self, p, phi):
+        t0 = p.t0 * np.exp(-1j * phi)
         model_dict = {"bc_MPS":"finite", "cons_N":"N", "cons_Sz":"Sz", "explicit_plus_hc":True,
         "L":p.nsites, "mu":0, "V":0, "U":p.u, "t":t0, "verbose":0}
         model_params = Config(model_dict, "FHHam-U{}".format(p.u))
@@ -56,15 +56,15 @@ class TrackingHamiltonian(FermiHubbardChain):
         pplus = -p.t0 * (np.sqrt(1 - x**2) + 1j * x)
         t0 = pplus * np.exp(-1j * thetapsi)
         model_dict = {"bc_MPS":"finite", "cons_N":"N", "cons_Sz":"Sz", "explicit_plus_hc":True,
-        "L":p.nsites, "mu":0, "V":0, "U":p.u, "t":t0, "verbose":0}
+        "L":p.nsites, "mu":0, "V":0, "U":p.u, "t":t0}
         model_params = Config(model_dict, "FHHam-U{}".format(p.u))
         FermiHubbardChain.__init__(self, model_params)
 
 class FHCurrentModel(CouplingMPOModel):
-    def __init__(self, curr_time, p, phi_func, args=[]):
-        t0 = p.t0 * np.exp(-1j * phi_func(curr_time, p, *args))
+    def __init__(self, p, phi):
+        t0 = p.t0 * np.exp(-1j * phi)
         model_dict = {"bc_MPS":"finite", "cons_N":"N", "cons_Sz":"Sz", 'explicit_plus_hc':False,
-        "L":p.nsites, "t":t0, "a":p.a, "verbose":0}
+        "L":p.nsites, "t":t0, "a":p.a}
         model_params = Config(model_dict, "FHCurrent-U{}".format(p.u))
         CouplingMPOModel.__init__(self, model_params)
 
