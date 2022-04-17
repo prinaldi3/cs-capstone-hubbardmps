@@ -17,10 +17,10 @@ it = .52
 """IMPORTANT PARAMETERS"""
 ##########################
 phi_func = phi_tracking
-maxerr = 1e-12  # used for DMRG
-maxdim = 1000 # maximum bond dimension, used for TEBD
+maxerr = 1e-15  # used for DMRG
+maxdim = 1800 # maximum bond dimension, used for TEBD
 pbc = False
-N = 10
+N = 18
 iU = 0 * it
 pbc = False  # periodic boundary conditions
 nsteps = 2000

@@ -33,7 +33,7 @@ class FHHamiltonian(FermiHubbardChain):
     def __init__(self, curr_time, p, phi_func, args=[]):
         t0 = p.t0 * np.exp(-1j * phi_func(curr_time, p, *args))
         model_dict = {"bc_MPS":"finite", "cons_N":"N", "cons_Sz":"Sz", "explicit_plus_hc":True,
-        "L":p.nsites, "mu":0, "V":0, "U":p.u, "t":t0}
+        "L":p.nsites, "mu":0, "V":0, "U":p.u, "t":t0, "verbose":0}
         model_params = Config(model_dict, "FHHam-U{}".format(p.u))
         FermiHubbardChain.__init__(self, model_params)
 
