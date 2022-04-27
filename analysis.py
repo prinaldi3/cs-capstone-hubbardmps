@@ -21,7 +21,7 @@ maxerr = 1e-12  # used for DMRG
 maxdim = 1000 # maximum bond dimension, used for TEBD
 pbc = False
 N = 10
-iU = 1 * it
+iU = 0 * it
 pbc = False  # periodic boundary conditions
 nsteps = 2000
 
@@ -34,20 +34,20 @@ iomega0 = 32.9  # driving (angular) frequency, in THz
 cycles = 10
 
 data = [(Parameters(N, iU, it, ia, cycles, iomega0, iF0, pbc), nsteps, N * 100)
-        for N in range(12, 31, 2)]
+        for N in range(6, 11, 2)]
 
-def simulate(p, nsteps):
+def simulate(p, nsteps, maxdim):
     print("Starting: U = {}, nsteps = {}".format(p.u, nsteps))
     # get the start time
     start_time = time.time()
-    model = FHHamiltonian(0, p, phi_func)
-    current = FHCurrent(0, p, phi_func)
+    model = FHHamiltonian(p, 0.)
+    current = FHCurrent(p, 0.)
     sites = model.lat.mps_sites()
     state = ["up", "down"] * (p.nsites // 2)
     psi0_i = MPS.from_product_state(sites, state)
 
     # the max bond dimension
-    chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 7:800, 8:maxdim}
+    chi_list = {0:20, 1:40, 2:100, 4:200, 6:400, 8:maxdim}
     dmrg_dict = {"chi_list":chi_list, "max_E_err":maxerr, "max_sweeps":10, "mixer":True, "combine":False}
     dmrg_params = Config(dmrg_dict, "DMRG-maxerr{}".format(maxerr))
     dmrg = DMRG(psi0_i, model, dmrg_params)
@@ -63,7 +63,7 @@ def simulate(p, nsteps):
     tebd_dict = {"dt":delta, "order":2, "start_time":ti, "start_trunc_err":TruncationError(eps=maxerr), "trunc_params":{"svd_min":maxerr, "chi_max":maxdim}, "N_steps":nsteps-1}
     tebd_params = Config(tebd_dict, "TEBD-trunc_err{}-nsteps{}".format(maxerr, nsteps))
     tebd = TEBD(psi, model, p, phi_tl, tebd_params)
-    times, energies, currents = tebd.run()
+    times, energies, currents, phis = tebd.run()
 
     tot_time = time.time() - start_time
 
@@ -78,7 +78,7 @@ def simulate(p, nsteps):
 
     savedir = "./Data/Tenpy/Basic/"
     allps = "-nsteps{}".format(nsteps)
-    ecps = "-nsites{}-U{}-maxdim{}-maxerr{}".format(p.nsites, p.u, maxdim, maxerr)
+    ecps = "-nsites{}-U{}-maxdim{}".format(p.nsites, p.u, maxdim)
     np.save(savedir + "times" + allps + ".npy", times)
     np.save(savedir + "energies" + allps + ecps + ".npy", energies)
     np.save(savedir + "currents" + allps + ecps + ".npy", currents)
@@ -88,5 +88,5 @@ def simulate(p, nsteps):
         f.write(str(tot_time) + "\n" )
     print("Done " +allps +ecps)
 
-with Pool(40) as pool:
-    pool.starmap(simulate, data)
+for args in data:
+    simulate(*args)
